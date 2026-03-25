@@ -418,43 +418,83 @@ class Player {
     this.radius = CELL*0.45;
   }
   setDir(dx,dy){this.nextDir={dx,dy}}
-  canMove(dx,dy,x,y){
-    const r1 = Math.floor((y-this.radius*0.7+dy*this.speed)/CELL);
-    const r2 = Math.floor((y+this.radius*0.7+dy*this.speed)/CELL);
-    const c1 = Math.floor((x-this.radius*0.7+dx*this.speed)/CELL);
-    const c2 = Math.floor((x+this.radius*0.7+dx*this.speed)/CELL);
-    for(let r=r1;r<=r2;r++) for(let c=c1;c<=c2;c++){
-      if(r<0||r>=ROWS||c<0||c>=COLS) return false;
-      if(maze[r][c]===WALL) return false;
-    }
-    return true;
+
+  // Check if a cell is passable
+  cellWalkable(row,col){
+    if(row<0||row>=ROWS||col<0||col>=COLS) return false;
+    return maze[row][col]!==WALL;
   }
+
   update(){
     if(this.dead){this.deadTimer++;return}
     this.bobT += 0.08;
-    // try next dir
-    if((this.nextDir.dx!==0||this.nextDir.dy!==0)){
-      if(this.canMove(this.nextDir.dx,this.nextDir.dy,this.x,this.y)){
-        this.dir = {...this.nextDir};
+
+    const SNAP = this.speed + 2; // snap threshold in pixels
+
+    // Current grid cell center
+    const cx = Math.round(this.x/CELL)*CELL + CELL/2 - CELL; // center of nearest col
+    const cy = Math.round(this.y/CELL)*CELL + CELL/2 - CELL; // center of nearest row
+
+    // Nearest grid intersection
+    const nearCol = Math.round((this.x - CELL/2) / CELL);
+    const nearRow = Math.round((this.y - CELL/2) / CELL);
+    const snapX = nearCol * CELL + CELL/2;
+    const snapY = nearRow * CELL + CELL/2;
+
+    const offX = Math.abs(this.x - snapX);
+    const offY = Math.abs(this.y - snapY);
+
+    // Try to apply queued direction
+    if(this.nextDir.dx!==0||this.nextDir.dy!==0){
+      const nd = this.nextDir;
+      // For horizontal movement we need to be aligned on Y axis, and vice versa
+      const aligned = (nd.dx!==0 ? offY<=SNAP : offX<=SNAP);
+      const targetRow = nearRow + nd.dy;
+      const targetCol = nearCol + nd.dx;
+      if(aligned && this.cellWalkable(targetRow, targetCol)){
+        // Snap to grid line and commit direction
+        if(nd.dx!==0) this.y = snapY;
+        if(nd.dy!==0) this.x = snapX;
+        this.dir = {...nd};
+        this.nextDir = {dx:0,dy:0};
       }
     }
-    if(this.canMove(this.dir.dx,this.dir.dy,this.x,this.y)){
-      this.x += this.dir.dx * this.speed;
-      this.y += this.dir.dy * this.speed;
+
+    // Move in current direction
+    if(this.dir.dx!==0||this.dir.dy!==0){
+      const nextRow = nearRow + this.dir.dy;
+      const nextCol = nearCol + this.dir.dx;
+      const moving_into_wall = !this.cellWalkable(nextRow, nextCol);
+
+      if(moving_into_wall){
+        // Stop exactly at grid center to prevent clipping into walls
+        const distToSnap = this.dir.dx!==0 ? offX : offY;
+        if(distToSnap < this.speed){
+          if(this.dir.dx!==0) this.x = snapX;
+          if(this.dir.dy!==0) this.y = snapY;
+          this.dir = {dx:0,dy:0};
+        } else {
+          this.x += this.dir.dx * this.speed;
+          this.y += this.dir.dy * this.speed;
+        }
+      } else {
+        this.x += this.dir.dx * this.speed;
+        this.y += this.dir.dy * this.speed;
+      }
     }
-    // wrap tunnel
+
+    // Wrap tunnel (row 10)
     if(this.x < 0) this.x = W;
     if(this.x > W) this.x = 0;
-    // collect
-    const row = Math.round(this.y/CELL);
-    const col = Math.round(this.x/CELL);
+
+    // Collect dots
+    const row = Math.round((this.y - CELL/2) / CELL);
+    const col = Math.round((this.x - CELL/2) / CELL);
     if(row>=0&&row<ROWS&&col>=0&&col<COLS){
       if(maze[row][col]===DOT){
-        maze[row][col]=EMPTY; score+=10; dots--; sfxDot();
-        updateHUD();
+        maze[row][col]=EMPTY; score+=10; dots--; sfxDot(); updateHUD();
       } else if(maze[row][col]===POWER){
-        maze[row][col]=EMPTY; score+=50; dots--; sfxPower();
-        activatePower(); updateHUD();
+        maze[row][col]=EMPTY; score+=50; dots--; sfxPower(); activatePower(); updateHUD();
       }
     }
     if(dots<=0) triggerWin();
