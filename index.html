@@ -101,13 +101,15 @@ body{display:flex;flex-direction:column;align-items:center;justify-content:cente
 #mobile-actions .btn-icon{flex:1;padding:8px 4px;font-size:.75rem}
 
 /* D-Pad */
-#dpad{display:none;flex-direction:column;align-items:center;gap:2px;margin-top:4px;user-select:none}
-.dpad-row{display:flex;gap:2px}
-.dpad-btn{width:52px;height:52px;background:rgba(191,95,255,.12);border:1px solid rgba(191,95,255,.3);
-  border-radius:8px;color:var(--neon-purple);cursor:pointer;font-size:1.4rem;
-  display:flex;align-items:center;justify-content:center;transition:background .1s;touch-action:none}
-.dpad-btn:active,.dpad-btn.pressed{background:rgba(191,95,255,.35);border-color:var(--neon-purple)}
-.dpad-center{width:52px;height:52px;background:transparent;border:none;pointer-events:none}
+#dpad{display:none;flex-direction:column;align-items:center;gap:4px;margin-top:6px;user-select:none}
+.dpad-row{display:flex;gap:4px}
+.dpad-btn{width:64px;height:64px;background:rgba(191,95,255,.15);border:2px solid rgba(191,95,255,.4);
+  border-radius:12px;color:var(--neon-purple);cursor:pointer;font-size:1.6rem;
+  display:flex;align-items:center;justify-content:center;transition:background .08s;touch-action:none;
+  -webkit-user-select:none;user-select:none}
+.dpad-btn:active,.dpad-btn.pressed{background:rgba(191,95,255,.5);border-color:var(--neon-purple);
+  transform:scale(0.93)}
+.dpad-center{width:64px;height:64px;background:transparent;border:none;pointer-events:none}
 
 /* ===== OVERLAY ===== */
 #overlay{display:none;position:fixed;inset:0;background:rgba(6,4,15,.9);
@@ -823,16 +825,22 @@ document.addEventListener("keydown",e=>{
   const d=KEYS[e.key];
   if(d){e.preventDefault();player.setDir(d.dx,d.dy);}
 });
-// Touch swipe
+
+// Swipe ONLY on canvas element (not UI buttons)
 let touchX,touchY;
-document.addEventListener("touchstart",e=>{touchX=e.touches[0].clientX;touchY=e.touches[0].clientY},{passive:true});
-document.addEventListener("touchend",e=>{
+document.getElementById("game-canvas").addEventListener("touchstart",e=>{
+  e.preventDefault();
+  touchX=e.touches[0].clientX; touchY=e.touches[0].clientY;
+},{passive:false});
+document.getElementById("game-canvas").addEventListener("touchend",e=>{
+  e.preventDefault();
   if(gameState!=="playing") return;
   const dx=e.changedTouches[0].clientX-touchX;
   const dy=e.changedTouches[0].clientY-touchY;
+  if(Math.abs(dx)<10 && Math.abs(dy)<10) return; // ignore taps
   if(Math.abs(dx)>Math.abs(dy)){player.setDir(dx>0?1:-1,0);}
   else{player.setDir(0,dy>0?1:-1);}
-},{passive:true});
+},{passive:false});
 
 // ==================== UI WIRING ====================
 document.getElementById("start-btn").addEventListener("click",()=>{
@@ -878,31 +886,30 @@ document.getElementById("sound-btn-m").addEventListener("click",()=>{
   document.getElementById("sound-btn").textContent=soundOn?"🔊 Sound ON":"🔇 Sound OFF";
   document.getElementById("sound-btn-m").textContent=soundOn?"🔊":"🔇";
 });
-// D-Pad
-document.getElementById("dp-up").addEventListener("click",()=>{if(gameState==="playing")player.setDir(0,-1);});
-document.getElementById("dp-down").addEventListener("click",()=>{if(gameState==="playing")player.setDir(0,1);});
-document.getElementById("dp-left").addEventListener("click",()=>{if(gameState==="playing")player.setDir(-1,0);});
-document.getElementById("dp-right").addEventListener("click",()=>{if(gameState==="playing")player.setDir(1,0);});
-// D-Pad touch hold
-["dp-up","dp-down","dp-left","dp-right"].forEach(id=>{
+// D-Pad — touch only, no click (prevents double-fire on mobile)
+const DPAD_DIRS={
+  "dp-up":{dx:0,dy:-1},"dp-down":{dx:0,dy:1},
+  "dp-left":{dx:-1,dy:0},"dp-right":{dx:1,dy:0}
+};
+Object.entries(DPAD_DIRS).forEach(([id,dir])=>{
   const el=document.getElementById(id);
-  let iv;
-  el.addEventListener("touchstart",e=>{
-    e.preventDefault();
+  let iv=null;
+  const press=()=>{
+    if(gameState!=="playing") return;
+    player.setDir(dir.dx,dir.dy);
     el.classList.add("pressed");
-    if(id==="dp-up") player.setDir(0,-1);
-    else if(id==="dp-down") player.setDir(0,1);
-    else if(id==="dp-left") player.setDir(-1,0);
-    else player.setDir(1,0);
+    if(iv) clearInterval(iv);
     iv=setInterval(()=>{
-      if(gameState!=="playing") return;
-      if(id==="dp-up") player.setDir(0,-1);
-      else if(id==="dp-down") player.setDir(0,1);
-      else if(id==="dp-left") player.setDir(-1,0);
-      else player.setDir(1,0);
-    },100);
-  },{passive:false});
-  el.addEventListener("touchend",()=>{clearInterval(iv);el.classList.remove("pressed");});
+      if(gameState==="playing") player.setDir(dir.dx,dir.dy);
+    },80);
+  };
+  const release=()=>{
+    clearInterval(iv); iv=null;
+    el.classList.remove("pressed");
+  };
+  el.addEventListener("touchstart",e=>{e.preventDefault();e.stopPropagation();press();},{passive:false});
+  el.addEventListener("touchend",e=>{e.preventDefault();e.stopPropagation();release();},{passive:false});
+  el.addEventListener("touchcancel",e=>{e.preventDefault();release();},{passive:false});
 });
 document.getElementById("ov-next-btn").addEventListener("click",()=>{
   hideOverlay(); level=Math.min(level+1,10);
