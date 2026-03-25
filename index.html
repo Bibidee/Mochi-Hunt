@@ -406,98 +406,72 @@ function buildMaze(){
 // ==================== PLAYER ====================
 class Player {
   constructor(){
-    this.row = 16; this.col = 9;
-    this.x = this.col*CELL + CELL/2;
-    this.y = this.row*CELL + CELL/2;
-    this.dir = {dx:0,dy:0};
-    this.nextDir = {dx:0,dy:0};
-    this.speed = getDiff(level).playerSpeed;
-    this.dead = false;
-    this.deadTimer = 0;
-    this.bobT = 0;
-    this.radius = CELL*0.45;
+    this.fromCol=9; this.fromRow=16;
+    this.toCol=9;   this.toRow=16;
+    this.pct=0;           // 0=at fromCell, 1=arrived at toCell
+    this.dx=0; this.dy=0; // current direction
+    this.ndx=0; this.ndy=0; // buffered input
+    this.dead=false; this.deadTimer=0; this.bobT=0;
+    this.radius=CELL*0.42;
+    this.x=9*CELL+CELL/2; this.y=16*CELL+CELL/2;
   }
-  setDir(dx,dy){this.nextDir={dx,dy}}
-
-  // Check if a cell is passable
-  cellWalkable(row,col){
-    if(row<0||row>=ROWS||col<0||col>=COLS) return false;
-    return maze[row][col]!==WALL;
+  setDir(dx,dy){ this.ndx=dx; this.ndy=dy; }
+  walkable(r,c){
+    if(r<0||r>=ROWS||c<0||c>=COLS) return false;
+    return maze[r][c]!==WALL && maze[r][c]!==GHOST_HOUSE;
   }
-
   update(){
     if(this.dead){this.deadTimer++;return}
-    this.bobT += 0.08;
+    this.bobT+=0.08;
+    const spd=getDiff(level).playerSpeed/CELL;
 
-    const SNAP = this.speed + 2; // snap threshold in pixels
-
-    // Current grid cell center
-    const cx = Math.round(this.x/CELL)*CELL + CELL/2 - CELL; // center of nearest col
-    const cy = Math.round(this.y/CELL)*CELL + CELL/2 - CELL; // center of nearest row
-
-    // Nearest grid intersection
-    const nearCol = Math.round((this.x - CELL/2) / CELL);
-    const nearRow = Math.round((this.y - CELL/2) / CELL);
-    const snapX = nearCol * CELL + CELL/2;
-    const snapY = nearRow * CELL + CELL/2;
-
-    const offX = Math.abs(this.x - snapX);
-    const offY = Math.abs(this.y - snapY);
-
-    // Try to apply queued direction
-    if(this.nextDir.dx!==0||this.nextDir.dy!==0){
-      const nd = this.nextDir;
-      // For horizontal movement we need to be aligned on Y axis, and vice versa
-      const aligned = (nd.dx!==0 ? offY<=SNAP : offX<=SNAP);
-      const targetRow = nearRow + nd.dy;
-      const targetCol = nearCol + nd.dx;
-      if(aligned && this.cellWalkable(targetRow, targetCol)){
-        // Snap to grid line and commit direction
-        if(nd.dx!==0) this.y = snapY;
-        if(nd.dy!==0) this.x = snapX;
-        this.dir = {...nd};
-        this.nextDir = {dx:0,dy:0};
+    // --- Arrival ---
+    if(this.pct>=1){
+      this.pct=0;
+      this.fromCol=this.toCol; this.fromRow=this.toRow;
+      // Collect dot at arrived cell
+      const r=this.fromRow, c=this.fromCol;
+      if(r>=0&&r<ROWS&&c>=0&&c<COLS){
+        if(maze[r][c]===DOT){maze[r][c]=EMPTY;score+=10;dots--;sfxDot();updateHUD();}
+        else if(maze[r][c]===POWER){maze[r][c]=EMPTY;score+=50;dots--;sfxPower();activatePower();updateHUD();}
       }
+      if(dots<=0){triggerWin();return;}
     }
 
-    // Move in current direction
-    if(this.dir.dx!==0||this.dir.dy!==0){
-      const nextRow = nearRow + this.dir.dy;
-      const nextCol = nearCol + this.dir.dx;
-      const moving_into_wall = !this.cellWalkable(nextRow, nextCol);
-
-      if(moving_into_wall){
-        // Stop exactly at grid center to prevent clipping into walls
-        const distToSnap = this.dir.dx!==0 ? offX : offY;
-        if(distToSnap < this.speed){
-          if(this.dir.dx!==0) this.x = snapX;
-          if(this.dir.dy!==0) this.y = snapY;
-          this.dir = {dx:0,dy:0};
-        } else {
-          this.x += this.dir.dx * this.speed;
-          this.y += this.dir.dy * this.speed;
+    // --- At cell centre: process input & pick next cell ---
+    if(this.pct===0 && this.toCol===this.fromCol && this.toRow===this.fromRow){
+      let turned=false;
+      // Try buffered direction
+      if(this.ndx!==0||this.ndy!==0){
+        const tc=this.fromCol+this.ndx, tr=this.fromRow+this.ndy;
+        if(this.walkable(tr,tc)){
+          this.dx=this.ndx; this.dy=this.ndy;
+          this.ndx=0; this.ndy=0;
+          this.toCol=tc; this.toRow=tr;
+          turned=true;
         }
-      } else {
-        this.x += this.dir.dx * this.speed;
-        this.y += this.dir.dy * this.speed;
+        // keep ndx/ndy buffered if not walkable yet
+      }
+      if(!turned && (this.dx!==0||this.dy!==0)){
+        // Also try buffered if current dir is blocked
+        const tc=this.fromCol+this.dx, tr=this.fromRow+this.dy;
+        if(this.walkable(tr,tc)){ this.toCol=tc; this.toRow=tr; }
+        else { this.dx=0; this.dy=0; }
       }
     }
 
-    // Wrap tunnel (row 10)
-    if(this.x < 0) this.x = W;
-    if(this.x > W) this.x = 0;
-
-    // Collect dots
-    const row = Math.round((this.y - CELL/2) / CELL);
-    const col = Math.round((this.x - CELL/2) / CELL);
-    if(row>=0&&row<ROWS&&col>=0&&col<COLS){
-      if(maze[row][col]===DOT){
-        maze[row][col]=EMPTY; score+=10; dots--; sfxDot(); updateHUD();
-      } else if(maze[row][col]===POWER){
-        maze[row][col]=EMPTY; score+=50; dots--; sfxPower(); activatePower(); updateHUD();
-      }
+    // --- Advance ---
+    if(this.dx!==0||this.dy!==0){
+      this.pct=Math.min(this.pct+spd, 1);
     }
-    if(dots<=0) triggerWin();
+
+    // --- Pixel position ---
+    this.x=(this.fromCol+(this.toCol-this.fromCol)*this.pct)*CELL+CELL/2;
+    this.y=(this.fromRow+(this.toRow-this.fromRow)*this.pct)*CELL+CELL/2;
+
+    // Tunnel
+    if(this.x < 0) this.x += W;
+    if(this.x >= W) this.x -= W;
   }
   draw(){
     if(this.dead) return;
@@ -526,95 +500,87 @@ class Player {
 
 // ==================== GHOSTS ====================
 const GHOST_COLORS = ["#ff2d78","#ff9500","#00f5ff","#bf5fff"];
-const GHOST_NAMES = ["Blinky","Pinky","Inky","Clyde"];
 class Ghost {
   constructor(idx){
-    this.idx = idx;
-    this.homeRow = 9; this.homeCol = 8+idx%3;
-    this.row = this.homeRow; this.col = this.homeCol;
-    this.x = this.col*CELL+CELL/2; this.y = this.row*CELL+CELL/2;
-    this.color = GHOST_COLORS[idx];
-    this.speed = getDiff(level).ghostSpeed;
-    this.dir = {dx:0,dy:-1};
-    this.released = false;
-    this.releaseTimer = idx * getDiff(level).releaseInterval;
-    this.frightened = false; this.frightenTimer = 0;
-    this.eaten = false; this.eatenTimer = 0;
-    this.waveT = 0;
-    this.targetRow = 1; this.targetCol = 1;
-    this.moved = 0;
+    this.idx=idx;
+    this.fromCol=8+idx%3; this.fromRow=9;
+    this.toCol=this.fromCol; this.toRow=this.fromRow;
+    this.pct=0;
+    this.color=GHOST_COLORS[idx];
+    this.speed=getDiff(level).ghostSpeed;
+    this.dx=0; this.dy=-1;
+    this.released=false;
+    this.releaseTimer=idx*getDiff(level).releaseInterval;
+    this.frightened=false; this.frightenTimer=0;
+    this.eaten=false; this.eatenTimer=0;
+    this.waveT=0;
+    this.targetRow=1; this.targetCol=1;
+    this.x=this.fromCol*CELL+CELL/2; this.y=this.fromRow*CELL+CELL/2;
   }
-  activate(dt){
-    this.releaseTimer -= dt;
-    if(this.releaseTimer <= 0) this.released = true;
-  }
-  frighten(dur){
-    if(this.eaten) return;
-    this.frightened = true; this.frightenTimer = dur;
-  }
+  activate(dt){ this.releaseTimer-=dt; if(this.releaseTimer<=0) this.released=true; }
+  frighten(dur){ if(this.eaten) return; this.frightened=true; this.frightenTimer=dur; }
   update(dt){
-    this.waveT += 0.05;
+    this.waveT+=0.05;
     if(!this.released){ this.activate(dt); return; }
     if(this.eaten){
-      this.eatenTimer -= dt;
-      if(this.eatenTimer<=0){this.eaten=false;this.frightened=false;
-        this.row=this.homeRow;this.col=this.homeCol;
-        this.x=this.col*CELL+CELL/2;this.y=this.row*CELL+CELL/2;}
+      this.eatenTimer-=dt;
+      if(this.eatenTimer<=0){
+        this.eaten=false; this.frightened=false;
+        this.fromCol=8+this.idx%3; this.fromRow=9;
+        this.toCol=this.fromCol; this.toRow=this.fromRow;
+        this.pct=0;
+        this.x=this.fromCol*CELL+CELL/2; this.y=this.fromRow*CELL+CELL/2;
+      }
       return;
     }
-    if(this.frightened){
-      this.frightenTimer -= dt;
-      if(this.frightenTimer<=0){this.frightened=false;}
-    }
-    // set target
+    if(this.frightened){ this.frightenTimer-=dt; if(this.frightenTimer<=0) this.frightened=false; }
+
+    // Set target
+    const pr=Math.floor(player.y/CELL), pc=Math.floor(player.x/CELL);
     if(!this.frightened){
-      if(this.idx===0){this.targetRow=Math.round(player.y/CELL);this.targetCol=Math.round(player.x/CELL)}
-      else if(this.idx===1){this.targetRow=Math.round(player.y/CELL)-2;this.targetCol=Math.round(player.x/CELL)+2}
-      else if(this.idx===2){this.targetRow=Math.round(player.y/CELL)+2;this.targetCol=Math.round(player.x/CELL)-2}
-      else{this.targetRow=ROWS-3;this.targetCol=1}
+      if(this.idx===0){this.targetRow=pr;this.targetCol=pc;}
+      else if(this.idx===1){this.targetRow=pr-2;this.targetCol=pc+2;}
+      else if(this.idx===2){this.targetRow=pr+2;this.targetCol=pc-2;}
+      else{this.targetRow=ROWS-3;this.targetCol=1;}
     } else {
       this.targetRow=ROWS-2; this.targetCol=Math.floor(Math.random()*COLS);
     }
-    // move every N pixels
-    this.moved += this.speed;
-    while(this.moved >= CELL*0.5){
-      this.moved -= CELL*0.5;
+
+    // Advance interpolation
+    const spd=this.speed/CELL;
+    this.pct=Math.min(this.pct+spd, 1);
+    if(this.pct>=1){
+      this.pct=0;
+      this.fromCol=this.toCol; this.fromRow=this.toRow;
       this.moveStep();
     }
-    // lerp
-    const tx=this.col*CELL+CELL/2, ty=this.row*CELL+CELL/2;
-    this.x += (tx-this.x)*0.25;
-    this.y += (ty-this.y)*0.25;
+    this.x=(this.fromCol+(this.toCol-this.fromCol)*this.pct)*CELL+CELL/2;
+    this.y=(this.fromRow+(this.toRow-this.fromRow)*this.pct)*CELL+CELL/2;
   }
   moveStep(){
-    const dirs = [{dx:0,dy:-1},{dx:0,dy:1},{dx:-1,dy:0},{dx:1,dy:0}];
-    // don't reverse
-    const rev = {dx:-this.dir.dx,dy:-this.dir.dy};
-    const valid = dirs.filter(d=>{
+    const dirs=[{dx:0,dy:-1},{dx:0,dy:1},{dx:-1,dy:0},{dx:1,dy:0}];
+    const rev={dx:-this.dx,dy:-this.dy};
+    const valid=dirs.filter(d=>{
       if(d.dx===rev.dx&&d.dy===rev.dy) return false;
-      const nr=this.row+d.dy, nc=this.col+d.dx;
+      const nr=this.fromRow+d.dy, nc=this.fromCol+d.dx;
       if(nr<0||nr>=ROWS||nc<0||nc>=COLS) return false;
-      const t=maze[nr][nc];
-      return t!==WALL;
+      return maze[nr][nc]!==WALL;
     });
     if(!valid.length) return;
-    // pick closest to target (or random if frightened)
-    let best = valid[0];
-    if(this.frightened){
-      best = valid[Math.floor(Math.random()*valid.length)];
-    } else {
-      let bestD = Infinity;
+    let best=valid[0];
+    if(this.frightened){ best=valid[Math.floor(Math.random()*valid.length)]; }
+    else {
+      let bestD=Infinity;
       for(const d of valid){
-        const nr=this.row+d.dy, nc=this.col+d.dx;
+        const nr=this.fromRow+d.dy, nc=this.fromCol+d.dx;
         const dist=(nr-this.targetRow)**2+(nc-this.targetCol)**2;
         if(dist<bestD){bestD=dist;best=d;}
       }
     }
-    this.dir=best;
-    this.row+=best.dy; this.col+=best.dx;
-    // wrap tunnel row 10
-    if(this.col<0)this.col=COLS-1;
-    if(this.col>=COLS)this.col=0;
+    this.dx=best.dx; this.dy=best.dy;
+    this.toCol=this.fromCol+best.dx; this.toRow=this.fromRow+best.dy;
+    if(this.toCol<0) this.toCol=COLS-1;
+    if(this.toCol>=COLS) this.toCol=0;
   }
   draw(){
     if(!this.released&&!this.eaten) return;
@@ -682,7 +648,7 @@ function activatePower(){
 // ==================== GAME LOOP ====================
 let lastTime=0;
 function gameLoop(ts){
-  const dt = ts-lastTime; lastTime=ts;
+  const dt = Math.min(ts-lastTime, 100); lastTime=ts;
   if(gameState!=="playing"){return;}
   ctx.clearRect(0,0,W,H);
   drawMaze();
