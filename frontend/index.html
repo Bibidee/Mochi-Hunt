@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport"
+        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#06040f" />
+  <meta name="description" content="Mochi Hunt — a neon maze chase powered by GenLayer." />
+  <title>Mochi Hunt — Powered by GenLayer</title>
+  <link rel="icon" href="/assets/sprites/mochi.jpg" />
+  <link rel="preload" as="image" href="/assets/sprites/mochi.jpg" />
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;900&family=Rajdhani:wght@400;500;600;700&display=swap"
+        rel="stylesheet" />
+  <link rel="stylesheet" href="/src/styles/main.css" />
+</head>
+<body>
+
+  <!-- ===== START SCREEN ===== -->
+  <div id="start-screen" class="screen active">
+    <div class="game-title">MOCHI HUNT</div>
+    <div class="subtitle">Powered by GenLayer</div>
+    <img id="mascot-preview" class="mascot-preview" src="/assets/sprites/mochi.jpg" alt="Mochi mascot" />
+    <div class="input-group">
+      <label for="username-input">Your Username</label>
+      <input id="username-input" class="neon-input" type="text" maxlength="18"
+             placeholder="Enter callsign..." autocomplete="off" />
+    </div>
+    <div class="input-group">
+      <label>Difficulty</label>
+      <div class="diff-row">
+        <button class="diff-btn" data-diff="easy">Easy</button>
+        <button class="diff-btn active" data-diff="medium">Medium</button>
+        <button class="diff-btn" data-diff="hard">Hard</button>
+      </div>
+    </div>
+    <button id="start-btn" class="btn-primary">LAUNCH GAME</button>
+    <button id="lb-btn" class="btn-secondary">🏆 Leaderboard</button>
+  </div>
+
+  <!-- ===== GAME SCREEN ===== -->
+  <div id="game-screen" class="screen">
+
+    <!-- Mobile HUD (top bar) -->
+    <div id="mobile-hud">
+      <div id="mobile-hud-top">
+        <div class="hud-item">
+          <div class="panel-label">Player</div>
+          <div id="hud-name-m" class="panel-value cyan" style="font-size:.85rem">MOCHI</div>
+        </div>
+        <div class="hud-item">
+          <div class="panel-label">Score</div>
+          <div id="hud-score-m" class="panel-value">0</div>
+        </div>
+        <div class="hud-item">
+          <div class="panel-label">Level</div>
+          <div id="hud-level-m" class="panel-value purple">1</div>
+        </div>
+        <div class="hud-item">
+          <div class="panel-label">Lives</div>
+          <div id="hud-lives-m" class="lives-row" style="justify-content:center"></div>
+        </div>
+        <div class="hud-item">
+          <div class="panel-label">Dots</div>
+          <div id="hud-dots-m" class="panel-value pink">0</div>
+        </div>
+      </div>
+    </div>
+
+    <div id="game-area">
+      <canvas id="game-canvas"></canvas>
+    </div>
+
+    <!-- Mobile action buttons -->
+    <div id="mobile-actions">
+      <button class="btn-icon" id="sound-btn-m">🔊</button>
+      <button class="btn-icon" id="pause-btn-m">⏸ Pause</button>
+      <button class="btn-icon" id="restart-btn-m">↺ Restart</button>
+      <button class="btn-icon" id="menu-btn-m">⌂ Menu</button>
+    </div>
+
+    <!-- D-Pad -->
+    <div id="dpad">
+      <div class="dpad-row">
+        <div class="dpad-center"></div>
+        <button class="dpad-btn" id="dp-up" aria-label="Up">▲</button>
+        <div class="dpad-center"></div>
+      </div>
+      <div class="dpad-row">
+        <button class="dpad-btn" id="dp-left" aria-label="Left">◀</button>
+        <div class="dpad-center"></div>
+        <button class="dpad-btn" id="dp-right" aria-label="Right">▶</button>
+      </div>
+      <div class="dpad-row">
+        <div class="dpad-center"></div>
+        <button class="dpad-btn" id="dp-down" aria-label="Down">▼</button>
+        <div class="dpad-center"></div>
+      </div>
+    </div>
+
+    <!-- Desktop side panel -->
+    <div id="side-panel">
+      <div class="panel-card">
+        <div class="panel-label">Player</div>
+        <div id="hud-name" class="panel-value cyan" style="font-size:.95rem;word-break:break-all">MOCHI</div>
+      </div>
+      <div class="panel-card">
+        <div class="panel-label">Score</div>
+        <div id="hud-score" class="panel-value">0</div>
+      </div>
+      <div class="panel-card">
+        <div class="panel-label">Level</div>
+        <div id="hud-level" class="panel-value purple">1</div>
+      </div>
+      <div class="panel-card">
+        <div class="panel-label">Lives</div>
+        <div id="hud-lives" class="lives-row"></div>
+      </div>
+      <div class="panel-card">
+        <div class="panel-label">Dots Left</div>
+        <div id="hud-dots" class="panel-value pink">0</div>
+      </div>
+      <button class="btn-icon" id="pause-btn">⏸ Pause</button>
+      <button class="btn-icon" id="sound-btn">🔊 Sound ON</button>
+      <button class="btn-icon" id="restart-btn">↺ Restart</button>
+      <button class="btn-icon" id="menu-btn">⌂ Menu</button>
+    </div>
+  </div>
+
+  <!-- ===== LEADERBOARD SCREEN ===== -->
+  <div id="lb-screen" class="screen">
+    <div class="lb-title">🏆 HALL OF FAME</div>
+    <div id="lb-source" class="lb-source"></div>
+    <table class="lb-table">
+      <thead><tr><th>#</th><th>Player</th><th>Score</th><th>Lv</th><th>Diff</th><th>✓</th></tr></thead>
+      <tbody id="lb-body"></tbody>
+    </table>
+    <button class="btn-secondary" id="lb-back-btn">← Back</button>
+  </div>
+
+  <!-- ===== WIN/LOSE OVERLAY ===== -->
+  <div id="overlay">
+    <div class="overlay-card">
+      <div id="ov-title" class="overlay-title">YOU WIN!</div>
+      <div id="ov-msg" class="overlay-msg"></div>
+      <div id="ov-score" class="overlay-score"></div>
+      <div id="ov-genlayer" class="genlayer-msg" style="display:none"></div>
+      <div class="btn-row">
+        <button class="btn-primary" id="ov-next-btn">NEXT LEVEL</button>
+        <button class="btn-secondary" id="ov-restart-btn">RESTART</button>
+        <button class="btn-secondary" id="ov-menu-btn">MENU</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>

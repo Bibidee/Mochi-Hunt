@@ -1,0 +1,14 @@
+{
+  "name": "mochi-hunt-contracts",
+  "version": "1.0.0",
+  "description": "GenLayer Intelligent Contract deployment + interaction scripts for Mochi Hunt",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "deploy": "node deployment/deploy.mjs",
+    "interact": "node deployment/interact.mjs"
+  },
+  "dependencies": {
+    "genlayer-js": "^1.1.8"
+  }
+}
