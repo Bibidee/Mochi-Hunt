@@ -61,6 +61,15 @@ body{display:flex;flex-direction:column;align-items:center;justify-content:cente
   font-weight:600;letter-spacing:2px;padding:10px 28px;text-transform:uppercase;
   transition:all .2s;width:100%;text-align:center}
 .btn-secondary:active{background:rgba(0,245,255,.08)}
+.btn-secondary:disabled{opacity:.45;cursor:not-allowed}
+
+/* ===== WALLET ===== */
+.wallet-status{font-family:'Orbitron',sans-serif;font-size:.7rem;letter-spacing:1px;
+  color:var(--neon-cyan);min-height:1em;text-align:center;word-break:break-all}
+.wallet-status.connected{color:var(--neon-yellow)}
+.onchain-note{font-size:.72rem;color:rgba(255,255,255,.45);text-align:center;line-height:1.4;
+  font-family:'Rajdhani',sans-serif}
+.onchain-note.error{color:var(--neon-pink)}
 
 /* ===== GAME SCREEN ===== */
 #game-screen{flex-direction:row;gap:20px;align-items:flex-start;justify-content:center;

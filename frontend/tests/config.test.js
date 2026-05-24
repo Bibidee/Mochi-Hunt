@@ -15,7 +15,16 @@ describe('getDifficultyParams', () => {
 
   it('respects power/release floors', () => {
     const p = getDifficultyParams('hard', 20);
-    expect(p.powerDuration).toBeGreaterThanOrEqual(2000);
-    expect(p.releaseInterval).toBeGreaterThanOrEqual(1500);
+    expect(p.powerDuration).toBeGreaterThanOrEqual(1500);
+    expect(p.releaseInterval).toBeGreaterThanOrEqual(1000);
+  });
+
+  it('ramps harder each level (more/faster ghosts, shorter power)', () => {
+    const l1 = getDifficultyParams('medium', 1);
+    const l5 = getDifficultyParams('medium', 5);
+    expect(l5.ghostSpeed).toBeGreaterThan(l1.ghostSpeed);
+    expect(l5.numGhosts).toBeGreaterThanOrEqual(l1.numGhosts);
+    expect(l5.powerDuration).toBeLessThan(l1.powerDuration);
+    expect(l5.releaseInterval).toBeLessThan(l1.releaseInterval);
   });
 });

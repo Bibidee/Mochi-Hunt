@@ -20,11 +20,17 @@
     <div class="game-title">MOCHI HUNT</div>
     <div class="subtitle">Powered by GenLayer</div>
     <img id="mascot-preview" class="mascot-preview" src="/assets/sprites/mochi.jpg" alt="Mochi mascot" />
+
+    <button id="connect-btn" class="btn-secondary">🔗 Connect Wallet</button>
+    <div id="wallet-status" class="wallet-status"></div>
+
     <div class="input-group">
       <label for="username-input">Your Username</label>
       <input id="username-input" class="neon-input" type="text" maxlength="18"
              placeholder="Enter callsign..." autocomplete="off" />
     </div>
+    <button id="register-btn" class="btn-secondary" disabled>📝 Register Username (on-chain)</button>
+
     <div class="input-group">
       <label>Difficulty</label>
       <div class="diff-row">
@@ -33,8 +39,9 @@
         <button class="diff-btn" data-diff="hard">Hard</button>
       </div>
     </div>
-    <button id="start-btn" class="btn-primary">LAUNCH GAME</button>
+    <button id="start-btn" class="btn-primary" disabled>LAUNCH GAME</button>
     <button id="lb-btn" class="btn-secondary">🏆 Leaderboard</button>
+    <div id="onchain-note" class="onchain-note">Connect a wallet and register your name on-chain to play.</div>
   </div>
 
   <!-- ===== GAME SCREEN ===== -->
@@ -143,6 +150,7 @@
       <div id="ov-title" class="overlay-title">YOU WIN!</div>
       <div id="ov-msg" class="overlay-msg"></div>
       <div id="ov-score" class="overlay-score"></div>
+      <button class="btn-primary" id="ov-submit-btn">⛓ Submit Score On-Chain</button>
       <div id="ov-genlayer" class="genlayer-msg" style="display:none"></div>
       <div class="btn-row">
         <button class="btn-primary" id="ov-next-btn">NEXT LEVEL</button>

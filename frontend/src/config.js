@@ -73,14 +73,18 @@ export const DIFFICULTY = {
 export const GHOST_SPEED_CAP = 7.5; // cells/sec ceiling after level scaling
 
 // Compute effective difficulty parameters for a given base difficulty + level.
+// Difficulty ramps harder each level: ghosts get faster (steeper ramp), more
+// ghosts arrive sooner (+1 every 2 levels), power pellets wear off faster, and
+// ghosts leave the house sooner. Player speed stays constant so skilled juking
+// at intersections remains the counterplay.
 export function getDifficultyParams(difficulty, level) {
   const d = DIFFICULTY[difficulty] || DIFFICULTY.medium;
-  const factor = 1 + (level - 1) * 0.12;
+  const factor = 1 + (level - 1) * 0.16;
   return {
     playerSpeed: d.playerSpeed,
     ghostSpeed: Math.min(d.ghostSpeed * factor, GHOST_SPEED_CAP),
-    numGhosts: Math.min(d.numGhosts + Math.floor((level - 1) / 3), 4),
-    powerDuration: Math.max(d.powerDuration - (level - 1) * 300, 2000),
-    releaseInterval: Math.max(d.releaseInterval - (level - 1) * 200, 1500),
+    numGhosts: Math.min(d.numGhosts + Math.floor((level - 1) / 2), 4),
+    powerDuration: Math.max(d.powerDuration - (level - 1) * 500, 1500),
+    releaseInterval: Math.max(d.releaseInterval - (level - 1) * 300, 1000),
   };
 }
