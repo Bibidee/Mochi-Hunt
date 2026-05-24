@@ -1,0 +1,35 @@
+# Fly.io config for the Mochi Hunt API.
+# Deploy from this folder:  fly deploy --remote-only
+# Set SECRETS separately (never commit them):
+#   fly secrets set GENLAYER_PRIVATE_KEY=0x...
+#   fly secrets set FIREBASE_PROJECT_ID=... FIREBASE_CLIENT_EMAIL=... FIREBASE_DATABASE_URL=...
+#   fly secrets set FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
+#   fly secrets set REDIS_URL=redis://...           # optional cache
+
+app = "mochi-hunt-api"          # must be globally unique — change if taken
+primary_region = "iad"          # pick a region near you (e.g. lhr, fra, sin)
+
+[build]
+
+[env]
+  NODE_ENV = "production"
+  API_PORT = "4000"
+  GENLAYER_NETWORK = "studionet"
+  GENLAYER_CONTRACT_ADDRESS = "0xCfE8D1bb7d8AA7b488A9Ac23844482AE7D957Cc9"
+  REQUIRE_ONCHAIN_VALIDATION = "true"
+  CORS_ORIGINS = "https://mochi-hunt.vercel.app"
+  LOG_PRETTY = "false"
+
+[http_service]
+  internal_port = 4000
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0      # scales to zero when idle; set 1 to avoid cold starts
+
+  [[http_service.checks]]
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "10s"
+    method = "GET"
+    path = "/api/health"
