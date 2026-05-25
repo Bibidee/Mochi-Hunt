@@ -48,6 +48,9 @@ venv/
 pgdata/
 redisdata/
 
+# ===== Claude Code (local tooling, not part of the project) =====
+.claude/
+
 # ===== Editor / OS =====
 .DS_Store
 Thumbs.db
