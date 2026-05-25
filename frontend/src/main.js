@@ -11,8 +11,8 @@ import { showScreen } from './ui/screens.js';
 import { showOverlay, hideOverlay } from './ui/overlay.js';
 import { renderLeaderboard } from './ui/leaderboardView.js';
 import {
-  connectWallet, registerUsername, submitScore, getRegisteredName,
-  isWalletAvailable, isConnected, shortAddress, contractConfigured,
+  connectWallet, disconnect, setWalletChangeHandler, registerUsername, submitScore,
+  getRegisteredName, isWalletAvailable, isConnected, shortAddress, contractConfigured,
 } from './game/blockchain/wallet.js';
 import { $, setText } from './utils/dom.js';
 
@@ -45,6 +45,20 @@ function refreshGate() {
   // Launch requires a connected wallet with a registered username.
   $('start-btn').disabled = !(isConnected() && registered);
   $('register-btn').disabled = !isConnected();
+}
+
+function refreshWalletUI() {
+  const connected = isConnected();
+  setText($('connect-btn'), connected ? '🔌 Disconnect Wallet' : '🔗 Connect Wallet');
+  const status = $('wallet-status');
+  if (connected) {
+    setText(status, `Connected: ${shortAddress()}`);
+    status.classList.add('connected');
+  } else {
+    setText(status, '');
+    status.classList.remove('connected');
+  }
+  refreshGate();
 }
 
 async function handleEnd(win, snapshot) {
@@ -92,33 +106,50 @@ async function init() {
   } else if (!isWalletAvailable()) {
     setNote('No wallet detected — install MetaMask to play on-chain.', true);
   }
-  refreshGate();
+  refreshWalletUI();
 
-  // ---- Connect wallet ----
+  // Adopt an already-registered name for an address (used on connect + switch).
+  async function adoptIdentity(addr) {
+    registered = false;
+    try {
+      const existing = await getRegisteredName(addr);
+      if (existing) {
+        $('username-input').value = existing;
+        store.set({ username: existing.toUpperCase() });
+        registered = true;
+        setNote(`Registered as "${existing}". Ready to play!`);
+      } else {
+        setNote('Enter a username and register it on-chain to play.');
+      }
+    } catch { setNote('Enter a username and register it on-chain to play.'); }
+  }
+
+  // React to wallet account switches / disconnects from the extension itself.
+  setWalletChangeHandler(async (addr) => {
+    if (addr) await adoptIdentity(addr);
+    else { registered = false; setNote('Wallet disconnected.'); }
+    refreshWalletUI();
+  });
+
+  // ---- Connect / Disconnect (toggle) ----
   $('connect-btn').addEventListener('click', async () => {
     const btn = $('connect-btn');
+    if (isConnected()) {
+      disconnect();
+      registered = false;
+      setNote('Wallet disconnected.');
+      refreshWalletUI();
+      return;
+    }
     btn.disabled = true;
     try {
       const addr = await connectWallet();
-      setText($('wallet-status'), `Connected: ${shortAddress(addr)}`);
-      $('wallet-status').classList.add('connected');
-      // If this wallet already registered a name, adopt it.
-      try {
-        const existing = await getRegisteredName(addr);
-        if (existing) {
-          $('username-input').value = existing;
-          store.set({ username: existing.toUpperCase() });
-          registered = true;
-          setNote(`Registered as "${existing}". Ready to play!`);
-        } else {
-          setNote('Enter a username and register it on-chain to play.');
-        }
-      } catch { setNote('Enter a username and register it on-chain to play.'); }
+      await adoptIdentity(addr);
     } catch (err) {
       setNote(err.message, true);
     } finally {
       btn.disabled = false;
-      refreshGate();
+      refreshWalletUI();
     }
   });
 

@@ -16,6 +16,17 @@ const CONTRACT = (import.meta.env?.VITE_GENLAYER_CONTRACT_ADDRESS || '').trim();
 let writeClient = null;
 let readClient = null;
 let account = null;
+let onChange = null;
+
+// Register a callback fired when the wallet account changes/disconnects.
+export function setWalletChangeHandler(fn) { onChange = fn; }
+
+// Forget the wallet locally (MetaMask has no programmatic disconnect; this
+// clears our session so the UI resets and reconnecting re-prompts).
+export function disconnect() {
+  account = null;
+  writeClient = null;
+}
 
 function requireContract() {
   if (!CONTRACT) {
@@ -59,7 +70,8 @@ export async function connectWallet() {
   // Reflect account changes from the wallet UI.
   window.ethereum.on?.('accountsChanged', (accs) => {
     account = accs && accs.length ? accs[0] : null;
-    if (!account) writeClient = null;
+    writeClient = account ? createClient({ chain: studionet, account, provider: window.ethereum }) : null;
+    if (onChange) onChange(account);
   });
   return account;
 }
