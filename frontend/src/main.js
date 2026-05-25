@@ -44,12 +44,14 @@ function setNote(text, isError = false) {
 function refreshGate() {
   // Launch requires a connected wallet with a registered username.
   $('start-btn').disabled = !(isConnected() && registered);
-  $('register-btn').disabled = !isConnected();
+  // Already-registered wallets shouldn't (and can't usefully) register again.
+  $('register-btn').disabled = !isConnected() || registered;
 }
 
 function refreshWalletUI() {
   const connected = isConnected();
   setText($('connect-btn'), connected ? '🔌 Disconnect Wallet' : '🔗 Connect Wallet');
+  setText($('register-btn'), registered ? '✓ Username Registered' : '📝 Register Username (on-chain)');
   const status = $('wallet-status');
   if (connected) {
     setText(status, `Connected: ${shortAddress()}`);
@@ -158,7 +160,6 @@ async function init() {
     const name = ($('username-input').value || '').trim();
     if (!name) { setNote('Enter a username first.', true); return; }
     const btn = $('register-btn');
-    const original = btn.textContent;
     btn.disabled = true;
     btn.textContent = '⏳ Registering… confirm in wallet';
     setNote('Confirm the transaction in your wallet… (this can take ~30–60s)');
@@ -171,8 +172,7 @@ async function init() {
       registered = false;
       setNote(`Registration failed: ${err.message}`, true);
     } finally {
-      btn.textContent = original;
-      refreshGate();
+      refreshWalletUI();
     }
   });
 

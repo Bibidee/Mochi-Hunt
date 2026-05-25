@@ -1,8 +1,9 @@
-# v0.3.0
+# v0.3.1
 # { "Depends": "py-genlayer:1jb45aa8ynh2a9c9xn3b7qqh8sm5q93hwfp7jqmwsfhh8jpz09h6" }
 #
 # Mochi Hunt — Leaderboard Integrity Intelligent Contract
-# Deployed (studionet, v0.3.0): 0xE5f8D7DEc9fb414d1A1E3feb2e01c0032B664a09
+# v0.3.1: usernames keyed by lowercased hex string (Address-keyed TreeMap lookups
+#         crash when the key arrives from calldata as a plain string).
 # ------------------------------------------------------------------------------
 # Fully client-side dApp model: each PLAYER signs their own transactions with
 # their wallet (no server-held key). Two on-chain actions:
@@ -22,8 +23,8 @@ class MochiHuntLeaderboard(gl.Contract):
     total_submissions: u256
     verified_count: u256
     registered_count: u256
-    # wallet address -> claimed username
-    usernames: TreeMap[Address, str]
+    # lowercased wallet hex address -> claimed username
+    usernames: TreeMap[str, str]
     # Append-only log of verified entries (JSON strings).
     entries: DynArray[str]
 
@@ -92,10 +93,10 @@ class MochiHuntLeaderboard(gl.Contract):
     def register_username(self, name: str) -> None:
         """Claim/replace an on-chain username for the calling wallet (txn #1)."""
         cleaned = self._clean_name(name)
-        sender = gl.message.sender_address
-        if sender not in self.usernames:
+        key = gl.message.sender_address.as_hex.lower()
+        if key not in self.usernames:
             self.registered_count += u256(1)
-        self.usernames[sender] = cleaned
+        self.usernames[key] = cleaned
 
     @gl.public.write
     def validate_score(
@@ -114,7 +115,7 @@ class MochiHuntLeaderboard(gl.Contract):
         self.total_submissions += u256(1)
 
         sender = gl.message.sender_address
-        name = self.usernames.get(sender, "")
+        name = self.usernames.get(sender.as_hex.lower(), "")
         if name == "":
             return False  # must register_username() first
 
@@ -217,8 +218,8 @@ or
 
     # ---------------------------------------------------------------- Views
     @gl.public.view
-    def get_username(self, addr: Address) -> str:
-        return self.usernames.get(addr, "")
+    def get_username(self, addr: str) -> str:
+        return self.usernames.get(addr.lower(), "")
 
     @gl.public.view
     def get_entries(self) -> str:
