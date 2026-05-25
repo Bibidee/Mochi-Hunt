@@ -1,11 +1,11 @@
-# v0.2.16
+# v0.3.3
 # { "Depends": "py-genlayer:1jb45aa8ynh2a9c9xn3b7qqh8sm5q93hwfp7jqmwsfhh8jpz09h6" }
 
 from genlayer import *
 import json
 
 
-_CONTRACT_VERSION = "0.3.2"
+_CONTRACT_VERSION = "0.3.3"
 
 
 class MochiHuntLeaderboard(gl.Contract):
@@ -18,8 +18,9 @@ class MochiHuntLeaderboard(gl.Contract):
     # lowercased wallet hex address -> claimed username
     usernames: TreeMap[str, str]
 
-    # append-only log of verified entries as JSON strings
-    entries: DynArray[str]
+    # lowercased wallet hex address -> that player's BEST verified entry (JSON).
+    # One row per player; only replaced when they beat their own high score.
+    best: TreeMap[str, str]
 
     def __init__(self) -> None:
         self.owner = gl.message.sender_address
@@ -257,7 +258,20 @@ or
         if not bool(verdict["plausible"]):
             return False
 
-        entry = json.dumps({
+        # Score is verified. Count it, but only update the leaderboard when it
+        # beats this player's own previous high score (one row per player).
+        self.verified_count += u256(1)
+
+        existing = self.best.get(sender_key, "")
+        if existing != "":
+            try:
+                prev_score = int(json.loads(existing).get("score", 0))
+            except Exception:
+                prev_score = -1
+            if s <= prev_score:
+                return True  # valid, but not a new personal best — leaderboard unchanged
+
+        self.best[sender_key] = json.dumps({
             "name": name,
             "score": s,
             "level": lvl,
@@ -269,9 +283,6 @@ or
             "verified": True,
             "submitted_by": sender.as_hex,
         })
-
-        self.entries.append(entry)
-        self.verified_count += u256(1)
 
         return True
 
@@ -292,8 +303,8 @@ or
     def get_entries(self) -> str:
         out = []
 
-        for e in self.entries:
-            out.append(json.loads(e))
+        for key in self.best:
+            out.append(json.loads(self.best[key]))
 
         return json.dumps(out)
 
@@ -301,8 +312,8 @@ or
     def get_top(self, n: u256) -> str:
         out = []
 
-        for e in self.entries:
-            out.append(json.loads(e))
+        for key in self.best:
+            out.append(json.loads(self.best[key]))
 
         out.sort(key=lambda x: int(x["score"]), reverse=True)
 
@@ -316,6 +327,7 @@ or
             "total_submissions": int(self.total_submissions),
             "verified_count": int(self.verified_count),
             "registered_count": int(self.registered_count),
+            "leaderboard_size": int(len(self.best)),
             "owner": self.owner.as_hex,
             "version": _CONTRACT_VERSION,
         })

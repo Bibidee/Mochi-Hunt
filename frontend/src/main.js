@@ -242,7 +242,7 @@ async function init() {
         ghosts_eaten: lastSnapshot.ghostsEaten,
       });
       if (result.accepted) {
-        setText(gl, '🏆 Verified on-chain by GenLayer — you made the leaderboard!');
+        setText(gl, '🏆 Verified on-chain! The leaderboard keeps your highest score.');
         btn.textContent = '✓ Submitted';
       } else {
         setText(gl, '⚠️ Score rejected on-chain (anti-cheat). Not recorded.');
