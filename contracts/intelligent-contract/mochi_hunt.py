@@ -1,20 +1,11 @@
-# v0.3.1
+# v0.2.16
 # { "Depends": "py-genlayer:1jb45aa8ynh2a9c9xn3b7qqh8sm5q93hwfp7jqmwsfhh8jpz09h6" }
-#
-# Mochi Hunt — Leaderboard Integrity Intelligent Contract
-# v0.3.1: usernames keyed by lowercased hex string (Address-keyed TreeMap lookups
-#         crash when the key arrives from calldata as a plain string).
-# ------------------------------------------------------------------------------
-# Fully client-side dApp model: each PLAYER signs their own transactions with
-# their wallet (no server-held key). Two on-chain actions:
-#   1. register_username(name)  -> claims an on-chain identity for msg.sender
-#   2. validate_score(...)      -> records a score under that identity, after
-#                                  deterministic + LLM-consensus anti-cheat
-#
-# Because the caller signs, gl.message.sender_address IS the player's wallet, so
-# scores are owned and a username must be registered before submitting.
+
 from genlayer import *
 import json
+
+
+_CONTRACT_VERSION = "0.3.2"
 
 
 class MochiHuntLeaderboard(gl.Contract):
@@ -23,9 +14,11 @@ class MochiHuntLeaderboard(gl.Contract):
     total_submissions: u256
     verified_count: u256
     registered_count: u256
+
     # lowercased wallet hex address -> claimed username
     usernames: TreeMap[str, str]
-    # Append-only log of verified entries (JSON strings).
+
+    # append-only log of verified entries as JSON strings
     entries: DynArray[str]
 
     def __init__(self) -> None:
@@ -37,19 +30,37 @@ class MochiHuntLeaderboard(gl.Contract):
     # --------------------------------------------------------------- Helpers
     def _clean_name(self, name: str) -> str:
         trimmed = name.strip()
+
         if trimmed == "":
             return "anonymous"
-        return trimmed[:18]
+
+        cleaned = ""
+        allowed = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-. "
+
+        for ch in trimmed:
+            if ch in allowed:
+                cleaned += ch
+
+        cleaned = cleaned.strip()
+
+        if cleaned == "":
+            return "anonymous"
+
+        return cleaned[:18]
 
     def _is_valid_verdict(self, value) -> bool:
         if not isinstance(value, dict):
             return False
+
         if "plausible" not in value:
             return False
+
         if not isinstance(value["plausible"], bool):
             return False
+
         if "reason" in value and not isinstance(value["reason"], str):
             return False
+
         return True
 
     def _deterministic_ok(
@@ -62,41 +73,86 @@ class MochiHuntLeaderboard(gl.Contract):
     ) -> bool:
         if score < 0:
             return False
+
         if level < 1 or level > 10:
             return False
+
         if score % 10 != 0:
             return False
+
         if duration_ms < 0:
             return False
+
         if dots_eaten < 0 or ghosts_eaten < 0:
             return False
-        if dots_eaten > 149 * level + 50:
+
+        # Pac-Man-style board guardrails.
+        # Allows a little telemetry slack while blocking impossible numbers.
+        max_dots = (149 * level) + 50
+        max_ghosts = (16 * level) + 8
+
+        if dots_eaten > max_dots:
             return False
-        if ghosts_eaten > 16 * level + 8:
+
+        if ghosts_eaten > max_ghosts:
             return False
+
+        # Very generous upper bound:
+        # normal dots + pellets + possible ghost combos + bonus slack.
         per_level_max = 1490 + 200 + 12000
-        ceiling = per_level_max * level + 2000
+        ceiling = (per_level_max * level) + 2000
+
         if score > ceiling:
             return False
+
+        # Prevent near-instant high scores.
         if score > 500:
             min_ms = min((score // 10) * 30, 8000)
             if duration_ms < min_ms:
                 return False
+
+        # Basic telemetry accounting:
+        # dots + flat ghost estimate + pellets + slack.
         accounted = (dots_eaten * 10) + (ghosts_eaten * 200) + (4 * 50 * level)
         slack = 5000 + (level * 1000)
+
         if dots_eaten > 0 and score > accounted + slack:
             return False
+
         return True
+
+    def _parse_llm_json(self, raw: str):
+        cleaned = raw.strip()
+        cleaned = cleaned.replace("```json", "").replace("```", "").strip()
+
+        try:
+            parsed = json.loads(cleaned)
+        except Exception:
+            raise gl.vm.UserError("LLM returned invalid JSON")
+
+        if not self._is_valid_verdict(parsed):
+            raise gl.vm.UserError("LLM returned invalid verdict schema")
+
+        return {
+            "plausible": bool(parsed["plausible"]),
+            "reason": str(parsed.get("reason", ""))[:160],
+        }
 
     # ---------------------------------------------------------------- Writes
     @gl.public.write
     def register_username(self, name: str) -> None:
-        """Claim/replace an on-chain username for the calling wallet (txn #1)."""
+        """
+        Claim or replace an on-chain username for the calling wallet.
+        This is transaction #1 from the frontend.
+        """
+
         cleaned = self._clean_name(name)
-        key = gl.message.sender_address.as_hex.lower()
-        if key not in self.usernames:
+        sender_key = gl.message.sender_address.as_hex.lower()
+
+        if sender_key not in self.usernames:
             self.registered_count += u256(1)
-        self.usernames[key] = cleaned
+
+        self.usernames[sender_key] = cleaned
 
     @gl.public.write
     def validate_score(
@@ -108,16 +164,24 @@ class MochiHuntLeaderboard(gl.Contract):
         dots_eaten: u256,
         ghosts_eaten: u256,
     ) -> bool:
-        """Validate + record a score for the caller's registered identity (txn #2).
-
-        Returns True if accepted and recorded. Requires a registered username.
         """
+        Validate and record a score for the caller's registered identity.
+        This is transaction #2 from the frontend.
+
+        Returns:
+        - True if accepted and recorded
+        - False if rejected
+        """
+
         self.total_submissions += u256(1)
 
         sender = gl.message.sender_address
-        name = self.usernames.get(sender.as_hex.lower(), "")
+        sender_key = sender.as_hex.lower()
+
+        name = self.usernames.get(sender_key, "")
+
         if name == "":
-            return False  # must register_username() first
+            return False
 
         s = int(score)
         lvl = int(level)
@@ -131,6 +195,8 @@ class MochiHuntLeaderboard(gl.Contract):
         if not self._deterministic_ok(s, lvl, dur, dots, ghosts):
             return False
 
+        # Copy all values into plain locals before entering nondeterministic logic.
+        # Do not access storage/self inside the LLM function.
         prompt = f"""
 You are an anti-cheat judge for a Pac-Man-style arcade game called Mochi Hunt.
 
@@ -173,30 +239,21 @@ or
 }}
 """
 
-        def leader_fn():
-            result = gl.nondet.exec_prompt(prompt, response_format="json")
-            if not self._is_valid_verdict(result):
-                raise gl.vm.UserError("LLM returned invalid verdict schema")
-            return {
-                "plausible": bool(result["plausible"]),
-                "reason": str(result.get("reason", ""))[:160],
-            }
+        def get_verdict() -> str:
+            raw = gl.nondet.exec_prompt(prompt)
+            return raw
 
-        def validator_fn(leaders_res) -> bool:
-            try:
-                if not isinstance(leaders_res, gl.vm.Return):
-                    return False
-                leader_payload = leaders_res.calldata
-                if not self._is_valid_verdict(leader_payload):
-                    return False
-                mine = leader_fn()
-                return bool(mine["plausible"]) == bool(leader_payload["plausible"])
-            except Exception:
-                return False
+        raw_verdict = gl.eq_principle.prompt_comparative(
+            get_verdict,
+            """
+            The leader and validator results must agree on the boolean value
+            of the JSON field "plausible". The wording of "reason" may differ,
+            but the final anti-cheat decision must be equivalent.
+            """
+        )
 
-        verdict = gl.vm.run_nondet_unsafe(leader_fn, validator_fn)
-        if not self._is_valid_verdict(verdict):
-            return False
+        verdict = self._parse_llm_json(raw_verdict)
+
         if not bool(verdict["plausible"]):
             return False
 
@@ -212,31 +269,45 @@ or
             "verified": True,
             "submitted_by": sender.as_hex,
         })
+
         self.entries.append(entry)
         self.verified_count += u256(1)
+
         return True
 
     # ---------------------------------------------------------------- Views
+    @gl.public.view
+    def contract_version(self) -> str:
+        return _CONTRACT_VERSION
+
     @gl.public.view
     def get_username(self, addr: str) -> str:
         return self.usernames.get(addr.lower(), "")
 
     @gl.public.view
+    def is_registered(self, addr: str) -> bool:
+        return self.usernames.get(addr.lower(), "") != ""
+
+    @gl.public.view
     def get_entries(self) -> str:
         out = []
+
         for e in self.entries:
             out.append(json.loads(e))
+
         return json.dumps(out)
 
     @gl.public.view
     def get_top(self, n: u256) -> str:
         out = []
+
         for e in self.entries:
             out.append(json.loads(e))
+
         out.sort(key=lambda x: int(x["score"]), reverse=True)
+
         limit = int(n)
-        if limit < 0:
-            limit = 0
+
         return json.dumps(out[:limit])
 
     @gl.public.view
@@ -246,4 +317,5 @@ or
             "verified_count": int(self.verified_count),
             "registered_count": int(self.registered_count),
             "owner": self.owner.as_hex,
+            "version": _CONTRACT_VERSION,
         })
