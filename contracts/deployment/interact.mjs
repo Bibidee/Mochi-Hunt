@@ -16,7 +16,7 @@ const chainMap = {
   bradbury: chains.testnetBradbury,
 };
 const chain = chainMap[network] || chains.studionet;
-const contractAddress = process.env.GENLAYER_CONTRACT_ADDRESS || '0xCfE8D1bb7d8AA7b488A9Ac23844482AE7D957Cc9';
+const contractAddress = process.env.GENLAYER_CONTRACT_ADDRESS || '0xE5f8D7DEc9fb414d1A1E3feb2e01c0032B664a09';
 
 if (!contractAddress) {
   console.error('Set GENLAYER_CONTRACT_ADDRESS first.');

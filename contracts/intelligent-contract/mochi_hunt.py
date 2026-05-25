@@ -2,6 +2,7 @@
 # { "Depends": "py-genlayer:1jb45aa8ynh2a9c9xn3b7qqh8sm5q93hwfp7jqmwsfhh8jpz09h6" }
 #
 # Mochi Hunt — Leaderboard Integrity Intelligent Contract
+# Deployed (studionet, v0.3.0): 0xE5f8D7DEc9fb414d1A1E3feb2e01c0032B664a09
 # ------------------------------------------------------------------------------
 # Fully client-side dApp model: each PLAYER signs their own transactions with
 # their wallet (no server-held key). Two on-chain actions:
