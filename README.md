@@ -66,15 +66,13 @@ dots?"*, which an ordinary smart contract cannot. That closes the prototype's wo
 
 ```
 frontend/        Vite SPA
-  public/        Static assets (sprites, audio, icons, fonts)
-  src/game/      engine · entities · systems · physics · scoring · leaderboard · blockchain (wallet)
+  public/        Static assets (mochi sprite)
+  src/game/      engine · entities · systems · physics · blockchain (wallet)
   src/ui/        Screens (start, game HUD, leaderboard, overlays)
   src/state/     Reactive game store
   src/utils/     Shared helpers (DOM-safe rendering, math)
   tests/         Vitest unit tests
 contracts/       GenLayer Intelligent Contract + deploy/interact scripts
-scripts/         setup · automation
-docs/            Notes
 .github/workflows/  CI
 ```
 
