@@ -1,74 +1,61 @@
 # Mochi Hunt — GenLayer Intelligent Contract
 
-[`intelligent-contract/mochi_hunt.py`](intelligent-contract/mochi_hunt.py) is the
-on-chain trust layer for the leaderboard.
+[`intelligent-contract/mochi_hunt.py`](intelligent-contract/mochi_hunt.py) (`MochiHuntLeaderboard`)
+is the on-chain trust layer **and** the leaderboard itself. Players sign every write
+with their own wallet — there is no backend.
+
+- **Live (studionet):** `0xB9603189BBe8334B69542b4173F79a76e61f0AF7`
 
 ## What it does & why GenLayer
 
 A score is recorded **only if it passes two gates**:
 
 1. **Deterministic gate** (`_deterministic_ok`) — bounds every validator computes
-   identically: score ≥ 0, multiple of 10, under a per-level ceiling, not earned
-   in near-zero time, and roughly accounted for by dots/ghosts eaten.
-2. **Non-deterministic gate** — an LLM judges *plausibility* ("is this score
-   believable for this level / time / dots?") and validators reconcile the verdict
-   through GenLayer's **equivalence principle** via the leader/validator pattern
-   (`gl.vm.run_nondet_unsafe`).
+   identically: score ≥ 0, multiple of 10, under a per-level ceiling, not earned in
+   near-zero time, roughly accounted for by dots/ghosts eaten.
+2. **Non-deterministic gate** — an LLM judges *plausibility* and validators reconcile the
+   verdict through GenLayer's equivalence principle via
+   `gl.eq_principle.prompt_comparative(fn, criteria)` (they must agree on the boolean
+   `plausible`, wording of `reason` may differ).
 
-This is the strongest fit for GenLayer: gate (2) is a subjective decision a normal
-smart contract cannot make, but an Intelligent Contract can — with consensus. It
-directly closes the original game's holes (open writes, spoofable scores).
+Even when verified, a score only updates the board if it **beats the wallet's own
+previous best** (one row per player).
 
 ## Interface
 
 | Method | Kind | Purpose |
 |--------|------|---------|
-| `validate_score(name, score, level, difficulty, duration_ms, dots_eaten, ghosts_eaten) -> bool` | write | Validate + record if plausible |
-| `get_entries() -> str` | view | All verified entries (JSON) |
-| `get_top(n) -> str` | view | Top-N verified entries by score (JSON) |
-| `get_stats() -> str` | view | `{total_submissions, verified_count, owner}` |
+| `register_username(name)` | write | Claim an on-chain username for the caller (txn #1) |
+| `validate_score(score, level, difficulty, duration_ms, dots_eaten, ghosts_eaten) -> bool` | write | Validate + record personal best for the caller's registered identity (txn #2) |
+| `get_top(n) -> str` / `get_entries() -> str` | view | Leaderboard, one row per wallet (JSON) |
+| `get_username(addr) -> str` / `is_registered(addr) -> bool` | view | Identity lookup |
+| `get_stats() -> str` / `contract_version() -> str` | view | Counters + version |
 
-## Local testing (no testnet needed)
+The caller's wallet is `gl.message.sender_address`, so scores are owned and a username
+must be registered before submitting.
 
-1. Install the GenLayer CLI and start a local Studio:
-   ```bash
-   npm install -g genlayer
-   genlayer up        # starts Studio + localnet (RPC at http://localhost:4000/api)
-   ```
-   You can also paste `mochi_hunt.py` straight into the Studio UI and run methods.
+## Deploy / update
 
-2. Deploy + smoke-test from this folder:
-   ```bash
-   cd contracts && npm install
-   node deployment/deploy.mjs                 # prints the contract address
-   GENLAYER_CONTRACT_ADDRESS=0x... node deployment/interact.mjs
-   ```
-
-## Deploy to Asimov testnet (when ready)
-
-> Requires your own funded GenLayer account. **You** create the account and hold
-> the private key — never share it. Do not commit it.
+Edit `mochi_hunt.py`, then deploy via the **GenLayer Studio** UI (paste the file), or
+from this folder with a funded account:
 
 ```bash
 cd contracts && npm install
-GENLAYER_NETWORK=testnet \
-GENLAYER_PRIVATE_KEY=0xYOUR_KEY \
-node deployment/deploy.mjs
+GENLAYER_NETWORK=studionet GENLAYER_PRIVATE_KEY=0xYOUR_KEY node deployment/deploy.mjs
 ```
 
-Then in the repo-root `.env`:
-```
-GENLAYER_RPC_URL=...               # testnet RPC
-GENLAYER_CONTRACT_ADDRESS=0x...    # printed by deploy.mjs
-GENLAYER_PRIVATE_KEY=0x...          # backend's signing key
-REQUIRE_ONCHAIN_VALIDATION=true    # enforce on-chain validation before persisting
-```
+> **You** create the account and hold the key — never share or commit it.
 
-The backend's [`genlayerClient.js`](../backend/blockchain/genlayerClient.js) reads
-these and calls `validate_score` during score submission (wired live in Phase 7).
+After it prints the new address, update `VITE_GENLAYER_CONTRACT_ADDRESS` in
+`frontend/.env` **and** the Vercel project env, then redeploy the frontend.
+
+`deployment/interact.mjs` is a smoke test (register + submit + read) — it needs a funded
+`GENLAYER_PRIVATE_KEY` since writes cost gas.
 
 ## Pinned API notes
 - Keep the `# { "Depends": "py-genlayer:..." }` header — it pins the GenVM SDK.
-- LLM calls go through `gl.nondet.exec_prompt(...)` inside a leader/validator pair;
-  never compare LLM text with exact string matching — we compare a boolean verdict.
+- `usernames`/`best` are keyed by the **lowercased hex address string** — Address-keyed
+  `TreeMap` lookups crash when the key arrives from calldata as a plain string.
+- LLM calls go through `gl.nondet.exec_prompt(...)` wrapped by
+  `gl.eq_principle.prompt_comparative`; compare the boolean verdict, never raw text.
 - `@gl.public.view` = read-only, `@gl.public.write` = state-changing.
